@@ -24,6 +24,8 @@ Keep these invariants when they apply to the flow:
 - HTTP/transport failures, provider-declared failures, malformed responses, timeout,
   and final business outcomes must not collapse accidentally into one ambiguous path.
 - OpenAPI contract changes → `../../references/openapi.md`
+- Protobuf/generated contract changes → `../../references/code-generation.md`
+- persistence/schema changes → `../../references/database.md`
 
 ## Workflow
 
