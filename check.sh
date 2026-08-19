@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
-# CI entry point: fails when the project has drifted from the rules it pins.
+# CI entry point: fails when the installed compact guidance/hook configuration drifts.
 exec "$(cd -- "$(dirname -- "$0")" && pwd)/install.sh" --check "$@"

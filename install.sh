@@ -1,14 +1,7 @@
 #!/usr/bin/env bash
-# Wires the shared rules into the project that mounts this submodule.
-#
-#   ./.agent-rules/install.sh                         apply common rules
-#   ./.agent-rules/install.sh --profile openapi       apply a rule profile
-#   ./.agent-rules/install.sh --check [--profile ...] report drift, write nothing
-#
-# Everything here is idempotent and owns a bounded piece of each file: the hook
-# entries it registered, and the text between the agent-rules markers. Whatever
-# else the project keeps in CLAUDE.md, AGENTS.md or its agent settings is left
-# untouched.
+# Installs a compact agent-routing block and deterministic hooks into a consuming
+# repository. Detailed references/skills remain in .agent-rules and are loaded only
+# when the task needs them.
 
 set -uo pipefail
 
@@ -63,7 +56,7 @@ PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 case "$RULES_DIR" in
     "$PROJECT_ROOT"/*) ;;
     *)
-        printf 'agent-rules: %s is not inside %s — run install.sh from the project that mounts it\n' \
+        printf 'agent-rules: %s is not inside %s — mount it inside the consuming project\n' \
             "$RULES_DIR" "$PROJECT_ROOT" >&2
         exit 1
         ;;
@@ -73,9 +66,8 @@ PROFILE="common"
 PROFILE_FILE="$PROJECT_ROOT/.agent-rules-profile"
 
 if [ -f "$PROFILE_FILE" ]; then
-    PROFILE="$(cat "$PROFILE_FILE")"
+    PROFILE="$(tr -d '\r\n' <"$PROFILE_FILE")"
 fi
-
 if [ -n "$PROFILE_OVERRIDE" ]; then
     PROFILE="$PROFILE_OVERRIDE"
 fi
@@ -102,7 +94,6 @@ report() {
     fi
 }
 
-# Writes $2 to $1 unless --check, in which case it only records the difference.
 apply_file() {
     local path="$1" desired="$2" label="$3"
 
@@ -117,11 +108,6 @@ apply_file() {
     printf '%s\n' "$desired" >"$path"
 }
 
-# --- agent hook registration -------------------------------------------------
-
-# Drops any previously registered entry for our hook, then appends the current
-# one. That makes the merge both idempotent and self-healing when a project has
-# edited the command by hand.
 merge_hooks() {
     local target="$1" fragment="$2" root_path="$3" label="$4"
     local base desired
@@ -147,7 +133,6 @@ merge_hooks() {
         exit 1
     }
 
-    # Compare normalized so that key order and indentation never look like drift.
     if [ -f "$target" ] &&
         [ "$(jq -S . "$target" 2>/dev/null)" = "$(printf '%s' "$desired" | jq -S .)" ]; then
         return 0
@@ -160,44 +145,35 @@ merge_hooks() {
     printf '%s' "$desired" | jq . >"$target"
 }
 
-# --- markdown block sync -----------------------------------------------------
+routing_body() {
+    cat "$RULES_DIR/guidance/core.md"
 
-rule_files() {
-    find "$RULES_DIR/rules" -maxdepth 1 -name '*.md' -not -name 'index.md' | sort
+    cat <<'EOF'
+
+## Load targeted guidance only when relevant
+
+- Database/schema/repository/transaction work: read `.agent-rules/references/database.md`.
+- Generated-source or Protobuf work: read `.agent-rules/references/code-generation.md`.
+- Cross-layer architecture/client/converter decisions not settled by local code: consult
+  `.agent-rules/references/code-conventions.md`.
+EOF
 
     case "$PROFILE" in
         openapi)
-            printf '%s\n' "$RULES_DIR/rules/profiles/openapi.md"
+            cat <<'EOF'
+- OpenAPI contract/generation work: read `.agent-rules/references/openapi.md`.
+EOF
             ;;
         adapter)
-            printf '%s\n' "$RULES_DIR/rules/profiles/adapter.md"
+            cat <<'EOF'
+- External provider/payment-adapter work: read
+  `.agent-rules/skills/provider-adapter/SKILL.md` and follow its progressive-disclosure
+  workflow.
+EOF
             ;;
     esac
 }
 
-# Path of a rule file relative to the project root, e.g. .agent-rules/rules/x.md
-rule_rel_path() {
-    printf '%s' "${1#"$PROJECT_ROOT"/}"
-}
-
-claude_block_body() {
-    printf '%s\n' "Shared organization rules, synced by .agent-rules/install.sh."
-    printf '\n'
-    rule_files | while IFS= read -r file; do
-        printf '@%s\n' "$(rule_rel_path "$file")"
-    done
-}
-
-agents_block_body() {
-    printf '%s\n' "Shared organization rules, synced by .agent-rules/install.sh. Do not edit by hand."
-    rule_files | while IFS= read -r file; do
-        printf '\n'
-        cat "$file"
-    done
-}
-
-# Replaces the marked block in $1 with $2, keeping everything outside it. Creates
-# the file, or appends the block, when either is missing.
 render_with_block() {
     local path="$1" body="$2"
     local block existing
@@ -225,8 +201,6 @@ $END_MARKER"
     ' "$path"
 }
 
-# --- run ---------------------------------------------------------------------
-
 merge_hooks "$PROJECT_ROOT/.claude/settings.json" \
     "$RULES_DIR/agents/claude/settings.hooks.json" \
     "hooks" \
@@ -237,12 +211,14 @@ merge_hooks "$PROJECT_ROOT/.codex/hooks.json" \
     "" \
     ".codex/hooks.json"
 
+BODY="$(routing_body)"
+
 apply_file "$PROJECT_ROOT/CLAUDE.md" \
-    "$(render_with_block "$PROJECT_ROOT/CLAUDE.md" "$(claude_block_body)")" \
+    "$(render_with_block "$PROJECT_ROOT/CLAUDE.md" "$BODY")" \
     "CLAUDE.md"
 
 apply_file "$PROJECT_ROOT/AGENTS.md" \
-    "$(render_with_block "$PROJECT_ROOT/AGENTS.md" "$(agents_block_body)")" \
+    "$(render_with_block "$PROJECT_ROOT/AGENTS.md" "$BODY")" \
     "AGENTS.md"
 
 if [ "$CHECK_ONLY" -eq 1 ] && [ "$DRIFT" -eq 1 ]; then

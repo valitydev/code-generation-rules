@@ -1,8 +1,4 @@
-# Copy into .github/workflows/ of a project that mounts .agent-rules.
-#
-# Fails the pull request when the project's agent configuration no longer
-# matches the rules revision it pins — usually because the submodule was bumped
-# without re-running install.sh.
+# Copy into .github/workflows/ of a consuming project.
 name: agent-rules drift
 
 on:
@@ -16,8 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Without this the check runs against an empty .agent-rules directory.
           submodules: true
 
-      - name: Check agent rules are in sync
+      - name: Check agent guidance is in sync
         run: ./.agent-rules/check.sh
