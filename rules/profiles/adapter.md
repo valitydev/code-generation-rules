@@ -12,15 +12,11 @@ providers.
   assembled independently by handlers.
 - Provider request and response models, converters, constants, and error handling
   stay behind the provider client boundary.
-- Runtime configuration keys, provider method names, URL paths, statuses, and error
-  codes are declared centrally as constants or enums.
-- Callback handlers dispatch by an explicit callback type and are idempotent. A
-  repeated callback must not overwrite completed state or repeat a side effect.
 
 ## Configuration and clients
 
-- Application settings use typed `@ConfigurationProperties` with `@Validated` and
-  field constraints for required values.
+- Runtime configuration keys, provider method names, URL paths, statuses, and error
+  codes are declared centrally as constants or enums.
 - Per-operation runtime options are validated by a dedicated validator before a
   converter or handler accesses them as non-null values.
 - Provider calls use the application's configured `RestClient` and `ObjectMapper`.
@@ -48,8 +44,9 @@ providers.
 
 ## State and polling
 
-- Multi-step operation state is held in a dedicated context and serialized into the
-  transport's continuation state through one serializer.
+- Multi-step operation state is held in a dedicated context. Store it in the deepest
+  continuation scope that reliably survives every step of the specific scenario and
+  reuse the established serialization path for that scope.
 - Missing continuation state creates a new context; malformed state fails explicitly.
 - Serialized context changes are backward compatible with states produced by the
   previous deployed version and are covered by compatibility tests.
@@ -59,6 +56,8 @@ providers.
   the next attempt using the configured backoff instead of looping immediately.
 - Final success, final failure, timeout, transport failure, and malformed provider
   responses produce distinct, deterministic outcomes.
+- Callback handlers dispatch by an explicit callback type and are idempotent. A
+  repeated callback must not overwrite completed state or repeat a side effect.
 
 ## Testing
 
@@ -71,3 +70,5 @@ providers.
 - Tests assert outbound method, path, headers, and body as well as the mapped result.
 - Shared flow fixtures and builders contain transport mechanics; test cases describe
   scenario-specific mocks, actions, and assertions.
+- New provider scenarios and tests start from the closest existing template or flow
+  fixture, reuse established mechanics, and keep provider-specific changes minimal.

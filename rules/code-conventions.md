@@ -2,10 +2,9 @@
 
 ## Architecture and dependencies
 
-- Transport adapters handle protocol concerns only: they validate the transport
+- Transport resources handle protocol concerns only: they validate the transport
   contract, delegate to a service, and translate failures into protocol errors.
-- Services implement business scenarios, define the order of operations, and own
-  transaction boundaries.
+- Services implement business scenarios and define the order of operations.
 - Complex changes to aggregate parts are delegated to focused handlers instead of
   growing a single service class.
 - Repositories encapsulate persistence and return database or domain models. They do
@@ -15,6 +14,9 @@
 - Spring dependencies are provided through constructor injection and stored in
   `final`/`val` fields. Java components use Lombok's `@RequiredArgsConstructor`
   instead of handwritten constructors when no custom initialization is required.
+
+## Project structure
+
 - Code is organized into the `config`, `config.properties`, `resource`,
   `servlet`, `service`, `repository`, `repository.model`, `scheduler`, `client`,
   `client.model`, `converter`, and `extensions` packages.
@@ -26,24 +28,15 @@
   `Map<String, Any>`.
 - Transport models are converted before reaching repositories. Simple entities may
   use generated persistence models; aggregates use local domain models.
-- JSON property names are specified with Jackson annotations, and closed sets of
-  values are represented by enums.
-- Model conversion is performed by dedicated `@Component` classes implementing
-  Spring's `Converter<S, T>`.
-- Requests and responses are created by converters.
+- JSON property names are specified with Jackson annotations only when they differ
+  from the corresponding field or property name. Closed sets of values are
+  represented by enums.
+- Model conversion, including creation of requests and responses, is performed by
+  dedicated `@Component` classes implementing Spring's `Converter<S, T>`.
 - Converters map data but do not write to the database or call external systems.
 - Optional fields are set only when present. An omitted value and an explicitly
   empty value remain distinct when the API contract distinguishes them.
 - Unsupported conversion directions fail explicitly instead of returning `null`.
-- Concrete converters are provided through constructor injection.
-- Related data for collections is loaded in batches before conversion; converters
-  must not introduce N+1 calls.
-
-## Business operations
-
-- Writes that form one business operation run in one transaction.
-- Collection equality ignores order when order has no business meaning.
-- One operation timestamp is reused for the persisted changes.
 
 ## REST-to-gRPC gateways
 
@@ -68,8 +61,8 @@
 
 ## Configuration
 
-- External integrations are replaced with mock or stub beans in tests.
-- Settings are grouped into typed `@ConfigurationProperties`.
+- Settings are grouped into typed `@ConfigurationProperties`; required values use
+  validation constraints and the properties are validated with `@Validated`.
 - Retry policies, backoff, and asynchronous executors are configured centrally and
   injected by name.
 
@@ -86,12 +79,13 @@
 
 ## Errors and logging
 
-- Expected domain failures use specific exception types and are mapped to transport
-  statuses at the transport boundary.
+- Expected domain failures use specific exception types. REST resources, controllers,
+  and other protocol entry points map them to protocol-specific response codes at the
+  application boundary; business services do not depend on HTTP or gRPC status types.
 - Logs use parameterized placeholders instead of string concatenation and include
   available request and domain identifiers.
 - Large payloads and user content are logged only at `DEBUG` or `TRACE`.
-- Transport adapters log request boundaries; services and handlers log business
+- Transport resources log request boundaries; services and handlers log business
   steps without duplicating the full payload.
 
 ## Testing
@@ -99,6 +93,6 @@
 - Pure converters and external-client orchestration are covered by unit tests,
   including optional values, empty collections, invalid input, retries, and early
   returns.
-- External calls use mocks or stubs and assert the generated request as well as the
-  returned result.
+- Tests replace external integrations with mock or stub beans and assert the generated
+  request as well as the returned result.
 - Asynchronous tests wait for an observable event instead of using a fixed `sleep`.
