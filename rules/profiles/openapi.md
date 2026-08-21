@@ -15,3 +15,5 @@ publish generated server or client artifacts.
   shared typed error schema.
 - Schema fields declare `required`, `nullable`, formats, enums, bounds, and collection
   constraints explicitly whenever they are part of the contract.
+- Existing operations and schemas evolve backward compatibly. Breaking changes require
+  an explicit API version and a documented deprecation and consumer migration plan.

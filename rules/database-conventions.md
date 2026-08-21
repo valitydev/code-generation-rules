@@ -38,6 +38,8 @@
 - Related data for result collections is fetched in batches to avoid N+1 queries.
 - Type-safe jOOQ DSL is preferred. PostgreSQL-specific plain SQL uses bind values or
   `inline(...)`, never string concatenation of user input.
+- Paginated queries use a deterministic total order with a unique tie-breaker. Prefer
+  keyset pagination.
 - Absence from a single-row query is represented consistently.
 
 ## Transaction boundaries

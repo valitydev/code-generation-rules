@@ -67,6 +67,8 @@ providers.
   malformed body, and required-field validation where applicable.
 - Stateful flows cover pending-to-success, pending-to-failure, polling timeout, and
   callback replay.
+- Retry exhaustion and duplicate side effects are covered where the corresponding
+  behavior exists.
 - Tests assert outbound method, path, headers, and body as well as the mapped result.
 - Shared flow fixtures and builders contain transport mechanics; test cases describe
   scenario-specific mocks, actions, and assertions.
