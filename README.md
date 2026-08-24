@@ -5,15 +5,18 @@ projects as a git submodule.
 
 The repository carries three things:
 
-- `rules/` — the rules themselves, as plain markdown. Single source of truth.
+- `rules/` — common rules and opt-in profiles, as plain markdown. Single source
+  of truth.
 - `hooks/` — scripts wired into agent lifecycle events (Claude Code and Codex).
 - `install.sh` / `check.sh` — wire the above into a consuming project, idempotently.
 
 ## What belongs here
 
-Only rules that hold for the whole organization. Anything tied to one service —
-its packages, its build quirks, its local conventions — stays in that service's
-own `AGENTS.md` / `CLAUDE.md`, outside the synced block.
+Top-level files in `rules/` hold rules that apply to the whole organization.
+Rules shared by one family of services live in `rules/profiles/` and are selected
+by the consuming project. Anything tied to one service — its build quirks and
+local conventions — stays in that service's own `AGENTS.md` / `CLAUDE.md`,
+outside the synced block.
 
 ## Adding to a project
 
@@ -25,13 +28,39 @@ git submodule add <repo-url> .agent-rules
 `install.sh` is idempotent and touches only what it owns:
 
 - registers the Kotlin format hook in `.claude/settings.json` and `.codex/hooks.json`
-- writes `@`-imports of `rules/*` into `CLAUDE.md`
+- writes `@`-imports of the selected rule files into `CLAUDE.md`
 - syncs the rule text into `AGENTS.md` between `<!-- BEGIN agent-rules -->` and
   `<!-- END agent-rules -->`
 
 Everything outside those markers is yours and is never rewritten.
 
 Commit the resulting changes together with the submodule pointer.
+
+## Rule profiles
+
+Without configuration, `install.sh` applies only the common rules. A consuming
+project can commit `.agent-rules-profile` with one of these values:
+
+- `common` — common rules only;
+- `openapi` — common rules and contract-first OpenAPI conventions;
+- `adapter` — common rules and external-adapter conventions.
+
+For example:
+
+```text
+openapi
+```
+
+The profile can be overridden for a single command. The same option is accepted
+by `check.sh`:
+
+```bash
+./.agent-rules/install.sh --profile openapi
+./.agent-rules/check.sh --profile openapi
+```
+
+The command-line value takes precedence over `.agent-rules-profile`. Unknown or
+empty profile values are rejected.
 
 ## Updating
 
@@ -45,8 +74,9 @@ change under a project without a commit in it.
 
 ## Keeping projects honest
 
-`check.sh` is `install.sh --check`: it writes nothing and exits non-zero when a
-project has drifted from the submodule it pins. Wire it into CI with
+`check.sh` runs `install.sh --check` with the configured profile: it writes
+nothing and exits non-zero when a project has drifted from the submodule it pins.
+Wire it into CI with
 `ci/github-actions/agent-rules-drift.yml` — note the `submodules: true` on
 checkout, without it the check runs against an empty directory.
 

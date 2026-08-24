@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Wires the shared rules into the project that mounts this submodule.
 #
-#   ./.agent-rules/install.sh            apply
-#   ./.agent-rules/install.sh --check    report drift, write nothing, exit 1 on drift
+#   ./.agent-rules/install.sh                         apply common rules
+#   ./.agent-rules/install.sh --profile openapi       apply a rule profile
+#   ./.agent-rules/install.sh --check [--profile ...] report drift, write nothing
 #
 # Everything here is idempotent and owns a bounded piece of each file: the hook
 # entries it registered, and the text between the agent-rules markers. Whatever
@@ -18,15 +19,36 @@ HOOK_MARKER="format-kotlin.sh"
 
 CHECK_ONLY=0
 DRIFT=0
+PROFILE_OVERRIDE=""
 
-case "${1:-}" in
-    --check) CHECK_ONLY=1 ;;
-    "") ;;
-    *)
-        printf 'usage: %s [--check]\n' "$0" >&2
-        exit 64
-        ;;
-esac
+usage() {
+    printf 'usage: %s [--check] [--profile common|openapi|adapter]\n' "$0" >&2
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --check)
+            CHECK_ONLY=1
+            shift
+            ;;
+        --profile)
+            case "${2:-}" in
+                ""|--*)
+                    printf 'agent-rules: --profile requires a value\n' >&2
+                    usage
+                    exit 64
+                    ;;
+            esac
+            PROFILE_OVERRIDE="$2"
+            shift 2
+            ;;
+        *)
+            printf 'agent-rules: unknown argument: %s\n' "$1" >&2
+            usage
+            exit 64
+            ;;
+    esac
+done
 
 command -v jq >/dev/null 2>&1 || {
     printf 'agent-rules: jq is required\n' >&2
@@ -44,6 +66,30 @@ case "$RULES_DIR" in
         printf 'agent-rules: %s is not inside %s — run install.sh from the project that mounts it\n' \
             "$RULES_DIR" "$PROJECT_ROOT" >&2
         exit 1
+        ;;
+esac
+
+PROFILE="common"
+PROFILE_FILE="$PROJECT_ROOT/.agent-rules-profile"
+
+if [ -f "$PROFILE_FILE" ]; then
+    PROFILE="$(cat "$PROFILE_FILE")"
+fi
+
+if [ -n "$PROFILE_OVERRIDE" ]; then
+    PROFILE="$PROFILE_OVERRIDE"
+fi
+
+case "$PROFILE" in
+    common|openapi|adapter) ;;
+    "")
+        printf 'agent-rules: profile in %s is empty\n' "$PROFILE_FILE" >&2
+        exit 64
+        ;;
+    *)
+        printf 'agent-rules: unknown profile: %s\n' "$PROFILE" >&2
+        printf 'agent-rules: expected common, openapi, or adapter\n' >&2
+        exit 64
         ;;
 esac
 
@@ -118,6 +164,15 @@ merge_hooks() {
 
 rule_files() {
     find "$RULES_DIR/rules" -maxdepth 1 -name '*.md' -not -name 'index.md' | sort
+
+    case "$PROFILE" in
+        openapi)
+            printf '%s\n' "$RULES_DIR/rules/profiles/openapi.md"
+            ;;
+        adapter)
+            printf '%s\n' "$RULES_DIR/rules/profiles/adapter.md"
+            ;;
+    esac
 }
 
 # Path of a rule file relative to the project root, e.g. .agent-rules/rules/x.md
