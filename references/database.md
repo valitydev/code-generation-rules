@@ -31,14 +31,14 @@ here:
 
 - Flyway location and migration naming;
 - jOOQ generation layout;
-- absence of foreign keys;
-- soft-delete as the default lifecycle;
+- use or absence of foreign keys;
+- soft-delete lifecycle;
 - `TIMESTAMP WITHOUT TIME ZONE` + `LocalDateTime` interpreted as UTC;
 - particular upsert patterns;
 - ShedLock/Flyway generator exclusions.
 
 If the task is specifically to define an organization-wide database policy, decide
-these points explicitly and enforce the deterministic parts with migration/CI tooling
+these points explicitly and enforce deterministic parts with migration/CI tooling
 rather than relying only on agent prose.
 
 ## Testing

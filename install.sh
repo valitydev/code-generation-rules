@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Installs a compact agent-routing block and deterministic hooks into a consuming
-# repository. Detailed references/skills remain in .agent-rules and are loaded only
-# when the task needs them.
+# Installs compact agent routing and deterministic hooks into a consuming repository.
+# Detailed references and skills stay in .agent-rules and are loaded only when needed.
 
 set -uo pipefail
 
-RULES_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
+RULES_DIR="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 BEGIN_MARKER="<!-- BEGIN agent-rules -->"
 END_MARKER="<!-- END agent-rules -->"
 HOOK_MARKER="format-kotlin.sh"
@@ -108,14 +107,51 @@ apply_file() {
     printf '%s\n' "$desired" >"$path"
 }
 
+normalize_legacy_codex_hooks() {
+    local base="$1"
+
+    # Older revisions of this repository wrote Stop/SubagentStop at the JSON root.
+    # Current Codex expects events under the top-level "hooks" object. Move the
+    # complete legacy groups so unrelated user hooks are preserved as well.
+    printf '%s' "$base" | jq '
+        reduce ["Stop", "SubagentStop"][] as $event (
+            .;
+            if (.[$event]? | type) == "array" then
+                .hooks = (.hooks // {})
+                | .hooks[$event] = ((.hooks[$event] // []) + .[$event])
+                | del(.[$event])
+            else
+                .
+            end
+        )
+    '
+}
+
 merge_hooks() {
-    local target="$1" fragment="$2" root_path="$3" label="$4"
+    local target="$1" fragment="$2" root_path="$3" label="$4" migrate_legacy="${5:-0}"
     local base desired
 
     base='{}'
     [ -f "$target" ] && base="$(cat "$target")"
 
+    if [ "$migrate_legacy" -eq 1 ]; then
+        base="$(normalize_legacy_codex_hooks "$base")" || {
+            printf 'agent-rules: failed to normalize legacy hooks in %s\n' "$target" >&2
+            exit 1
+        }
+    fi
+
     desired="$(printf '%s' "$base" | jq --slurpfile frag "$fragment" --arg marker "$HOOK_MARKER" --arg root "$root_path" '
+        def without_marker($marker):
+            map(
+                if (.hooks? | type) == "array" then
+                    .hooks |= map(select((((.command // "") | contains($marker))) | not))
+                else
+                    .
+                end
+            )
+            | map(select((.hooks? // []) | length > 0));
+
         ($frag[0] | getpath($root | split(".") | map(select(length > 0)))) as $events
         | reduce ($events | keys[]) as $event (
             .;
@@ -123,7 +159,7 @@ merge_hooks() {
                 ($root | split(".") | map(select(length > 0))) + [$event];
                 (
                     (getpath(($root | split(".") | map(select(length > 0))) + [$event]) // [])
-                    | map(select([.hooks[]?.command // ""] | map(contains($marker)) | any | not))
+                    | without_marker($marker)
                 )
                 + $events[$event]
             )
@@ -208,8 +244,9 @@ merge_hooks "$PROJECT_ROOT/.claude/settings.json" \
 
 merge_hooks "$PROJECT_ROOT/.codex/hooks.json" \
     "$RULES_DIR/agents/codex/hooks.json" \
-    "" \
-    ".codex/hooks.json"
+    "hooks" \
+    ".codex/hooks.json" \
+    1
 
 BODY="$(routing_body)"
 
