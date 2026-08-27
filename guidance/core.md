@@ -1,7 +1,8 @@
 # Shared agent guidance
 
-Treat repository-local code, tests, build configuration, and local `AGENTS.md` /
-`CLAUDE.md` content as the primary evidence for how this project is built.
+Treat current repository code, tests, build configuration, and service-specific
+instructions outside this managed block as the primary evidence for this project's
+architecture, tooling, and implementation patterns.
 
 Keep these organization-level invariants:
 
@@ -12,6 +13,8 @@ Keep these organization-level invariants:
   other payment-sensitive values.
 - Prefer an established local implementation pattern over introducing a new framework,
   package layout, abstraction, or dependency without a concrete need.
+- Do not promote an implementation choice observed in one service into an
+  organization-wide rule without stronger repository or contract evidence.
 - Run the project's existing focused tests, linters, generators, and compatibility
   checks that cover the changed area.
 - Do not load or apply detailed guidance that is unrelated to the current task.

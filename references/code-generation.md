@@ -16,7 +16,7 @@ published generated contract.
 - Reserve removed field numbers and names.
 - Preserve wire-compatible field types.
 - Use the repository's established package/versioning strategy.
-- When consumers may receive new enum values, oneof variants, or messages, add or
+- When consumers may receive new enum values, `oneof` variants, or messages, add or
   update compatibility tests and tolerant handling as appropriate.
 
 If a change is intentionally breaking, make the break explicit and coordinate the

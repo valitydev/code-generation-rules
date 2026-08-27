@@ -2,26 +2,43 @@
 
 Shared agent guidance and deterministic coding hooks for Vality services.
 
-The repository is mounted into a consuming project as `.agent-rules`. The always-on
-agent context stays intentionally small: durable cross-project invariants and routes to
-more specific guidance. Detailed conventions are read only for tasks that need them.
+The repository is mounted into a consuming project as `.agent-rules`. The persistent
+agent context stays intentionally small: durable cross-project invariants plus routes
+to more specific guidance. Detailed conventions are read only for tasks that need
+them.
 
 Repository-local code, tests, build configuration, `AGENTS.md`, and `CLAUDE.md` remain
-the primary source for local architecture and implementation patterns.
+the primary evidence for local architecture and implementation patterns. External
+contract skills may define a different authoritative source for the wire contract
+itself.
+
+## Guidance model
+
+Use the narrowest mechanism that reliably owns a rule:
+
+- `guidance/core.md` — durable organization-wide invariants and routing only;
+- `references/` — task-specific checklists and defaults loaded when relevant;
+- `skills/provider-adapter/` — the reusable workflow for external provider adapters;
+- repository-local code/instructions — service-specific architecture and conventions;
+- hooks, generators, linters, tests, and CI — deterministic checks that should not be
+  implemented mainly through prose.
+
+A rule should not become always-on merely because it is good engineering advice. Keep
+it persistent when omitting it repeatedly causes a material wrong choice across the
+whole scope. Otherwise put it in a narrower reference/skill, leave it to repository
+evidence, or enforce it with tooling.
 
 ## Repository layout
 
-- `guidance/core.md` — compact guidance installed into the persistent agent context.
-- `skills/provider-adapter/` — workflow and focused references for external
-  payment/provider integrations.
-- `references/` — task-specific guidance for database, generated contracts, OpenAPI,
-  and cross-layer code decisions.
+- `guidance/core.md` — compact guidance installed into persistent agent context.
+- `references/` — focused guidance for database, generated contracts, OpenAPI, and
+  cross-layer code decisions.
+- `skills/provider-adapter/` — contract-first provider workflow and narrow references.
 - `hooks/` — deterministic lifecycle checks; currently Kotlin formatting/linting.
 - `agents/` — Claude Code and Codex hook fragments.
 - `install.sh` — installs or refreshes the managed agent block and hooks.
-- `check.sh` — verifies that the consuming repository is synchronized with the pinned
-  submodule revision.
-- `ci/github-actions/agent-rules-drift.yml` — optional CI drift check.
+- `check.sh` — verifies that a consuming repository matches the pinned submodule.
+- `ci/github-actions/agent-rules-drift.yml` — optional consuming-repository drift check.
 
 ## Install
 
@@ -36,9 +53,10 @@ The installer is idempotent. It owns only:
 
 - content between `<!-- BEGIN agent-rules -->` and `<!-- END agent-rules -->` in
   `AGENTS.md` and `CLAUDE.md`;
-- the hook entries registered in `.codex/hooks.json` and `.claude/settings.json`.
+- hook entries containing this repository's `format-kotlin.sh` marker in
+  `.codex/hooks.json` and `.claude/settings.json`.
 
-Content outside the managed block is preserved.
+Content outside those owned areas is preserved.
 
 Requirements: `git` and `jq`. The Kotlin hook uses Maven only when the target project
 contains `ktlint-maven-plugin`.
@@ -47,7 +65,7 @@ contains `ktlint-maven-plugin`.
 
 The default profile is `common`.
 
-For a persistent project profile, commit `.agent-rules-profile` with exactly one of:
+A consuming repository may commit `.agent-rules-profile` with exactly one of:
 
 ```text
 common
@@ -55,68 +73,66 @@ openapi
 adapter
 ```
 
-- `common` — compact core plus common task routes.
-- `openapi` — common routes plus OpenAPI guidance.
+- `common` — compact core plus common task routes;
+- `openapi` — common routes plus OpenAPI guidance;
 - `adapter` — common routes plus the provider-adapter workflow.
 
-A profile can be overridden for one invocation:
+The profile can be overridden for one invocation:
 
 ```bash
 ./.agent-rules/install.sh --profile adapter
+./.agent-rules/check.sh --profile adapter
 ```
 
-For normal repository use, prefer committing `.agent-rules-profile` so `check.sh` and
-CI resolve the same profile without extra flags.
-
-## Update
-
-```bash
-git submodule update --remote .agent-rules
-./.agent-rules/install.sh
-git diff
-```
-
-Review and commit the submodule pointer together with generated changes to the managed
-agent configuration.
-
-## CI drift check
-
-Run:
-
-```bash
-./.agent-rules/check.sh
-```
-
-The command writes nothing. It exits non-zero if the managed blocks or hook
-configuration do not match the pinned `.agent-rules` revision.
-
-A GitHub Actions example is available at:
-
-```text
-ci/github-actions/agent-rules-drift.yml
-```
-
-The consuming workflow must checkout submodules.
+For normal repository use, prefer committing `.agent-rules-profile` so local install,
+`check.sh`, and CI resolve the same profile.
 
 ## Agent routing
 
-The installed persistent block does not copy the contents of `references/` or
-`skills/` into every task. It tells the coding agent when to read them:
+The managed block does not copy `references/` or `skills/` into every task. It routes
+the coding agent:
 
 - schema/migration/repository/transaction work → `references/database.md`;
 - generated-source or Protobuf work → `references/code-generation.md`;
 - cross-layer architecture/client/converter decisions not settled by local code →
   `references/code-conventions.md`;
 - OpenAPI work in the `openapi` profile → `references/openapi.md`;
-- external payment/provider integrations in the `adapter` profile →
+- provider integrations in the `adapter` profile →
   `skills/provider-adapter/SKILL.md`.
 
-The provider-adapter workflow starts from existing production adapters in the target
-repository and loads its narrower references only when the concrete flow needs them.
+The provider skill distinguishes the provider contract from local implementation
+evidence, starts from the closest working local flow, and loads only references needed
+for the concrete operation.
+
+## Hooks
+
+`hooks/format-kotlin.sh` runs at `Stop`/`SubagentStop` when the current agent surface
+supports project hooks. When Kotlin changed and the project uses
+`ktlint-maven-plugin`, it runs formatting and checking and can return remaining
+violations to the agent.
+
+The Codex fragment follows the current `.codex/hooks.json` schema with a top-level
+`hooks` object. `install.sh` also removes legacy root-level `Stop`/`SubagentStop`
+entries previously installed by this repository before writing the current shape.
+
+## Update and drift check
+
+```bash
+git submodule update --remote .agent-rules
+./.agent-rules/install.sh
+git diff
+./.agent-rules/check.sh
+```
+
+Review and commit the submodule pointer together with generated managed-block/hook
+changes. `check.sh` writes nothing and exits non-zero on drift.
+
+The optional GitHub Actions example is
+`ci/github-actions/agent-rules-drift.yml`; consuming workflows must checkout
+submodules.
 
 ## Project-specific environment
 
-If the build hook needs project-local environment such as `JAVA_HOME`, the consuming
+If the Kotlin hook needs project-local environment such as `JAVA_HOME`, the consuming
 repository may provide `.agent-rules.env` at its root. The hook sources that file when
-present. Keep secrets out of this file unless the consuming repository already has an
-appropriate secret-injection mechanism and the file itself is not committed.
+present. Do not commit secrets in that file.
