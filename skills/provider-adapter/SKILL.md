@@ -23,6 +23,7 @@ Keep these invariants when they apply to the flow:
   leak through source code, logs, exceptions, or diagnostic metadata;
 - HTTP/transport failures, provider-declared failures, malformed responses, timeout,
   and final business outcomes must not collapse accidentally into one ambiguous path.
+- OpenAPI contract changes → `../../references/openapi.md`
 
 ## Workflow
 
