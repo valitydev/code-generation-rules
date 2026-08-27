@@ -63,31 +63,16 @@ object; unrelated handlers inside those groups are preserved.
 Requirements: `git` and `jq`. The Kotlin hook uses Maven only when the target project
 contains `ktlint-maven-plugin`.
 
-## Profiles
+## Legacy profile compatibility
 
-The default profile is `common`.
+Guidance routing is task-driven rather than profile-driven. New consuming repositories
+do not need `.agent-rules-profile`.
 
-A consuming repository may commit `.agent-rules-profile` with exactly one of:
-
-```text
-common
-openapi
-adapter
-```
-
-- `common` — compact core plus common task routes;
-- `openapi` — common routes plus OpenAPI guidance;
-- `adapter` — common routes plus the provider-adapter workflow.
-
-The profile can be overridden for one invocation:
-
-```bash
-./.agent-rules/install.sh --profile adapter
-./.agent-rules/check.sh --profile adapter
-```
-
-For normal repository use, prefer committing `.agent-rules-profile` so local install,
-`check.sh`, and CI resolve the same profile.
+For compatibility with repositories already using the previous interface,
+`.agent-rules-profile` and `--profile common|openapi|adapter` are still accepted by
+`install.sh` / `check.sh`, but those values no longer remove routes from the managed
+agent block. This lets existing CI and project configuration migrate without changing
+which task-specific guidance is available.
 
 ## Agent routing
 
@@ -98,13 +83,16 @@ the coding agent:
 - generated-source or Protobuf work → `references/code-generation.md`;
 - cross-layer architecture/client/converter decisions not settled by local code →
   `references/code-conventions.md`;
-- OpenAPI work in the `openapi` profile → `references/openapi.md`;
-- provider integrations in the `adapter` profile →
-  `skills/provider-adapter/SKILL.md`.
+- OpenAPI contract/generation work → `references/openapi.md`;
+- changes that cross an external provider boundary or provider flow — request/response,
+  authentication, callbacks, polling, provider error mapping, provider integration
+  tests, or adapting another provider → `skills/provider-adapter/SKILL.md`.
 
-The provider skill distinguishes the provider contract from local implementation
-evidence, starts from the closest working local flow, and loads only references needed
-for the concrete operation.
+Ordinary internal bugs/refactors do not load the provider skill merely because they are
+in an adapter repository. The provider skill distinguishes the provider contract from
+local implementation evidence, starts from the closest working local flow, and loads
+only references needed for the concrete operation. Routes may compose: for example, an
+adapter change that also modifies OpenAPI or persistence can load both relevant paths.
 
 ## Hooks
 

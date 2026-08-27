@@ -11,6 +11,8 @@ HOOK_MARKER="format-kotlin.sh"
 
 CHECK_ONLY=0
 DRIFT=0
+# Legacy profile selectors remain accepted so existing consumers and CI do not break.
+# They no longer filter guidance; task routing is always installed.
 PROFILE_OVERRIDE=""
 
 usage() {
@@ -190,24 +192,15 @@ routing_body() {
 
 - Database/schema/repository/transaction work: read `.agent-rules/references/database.md`.
 - Generated-source or Protobuf work: read `.agent-rules/references/code-generation.md`.
+- OpenAPI contract/generation work: read `.agent-rules/references/openapi.md`.
 - Cross-layer architecture/client/converter decisions not settled by local code: consult
   `.agent-rules/references/code-conventions.md`.
+- When a task changes an external provider boundary or provider flow — request/response,
+  authentication, callback, polling, provider error mapping, provider integration tests,
+  or adaptation of another provider — read `.agent-rules/skills/provider-adapter/SKILL.md`
+  and follow its progressive-disclosure workflow. Do not load that skill for ordinary
+  internal bugs or refactors that do not cross the provider boundary.
 EOF
-
-    case "$PROFILE" in
-        openapi)
-            cat <<'EOF'
-- OpenAPI contract/generation work: read `.agent-rules/references/openapi.md`.
-EOF
-            ;;
-        adapter)
-            cat <<'EOF'
-- External provider/payment-adapter work: read
-  `.agent-rules/skills/provider-adapter/SKILL.md` and follow its progressive-disclosure
-  workflow.
-EOF
-            ;;
-    esac
 }
 
 validate_managed_block() {

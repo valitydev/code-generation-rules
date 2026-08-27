@@ -72,14 +72,13 @@ JSON
 )
 
 grep -q 'references/database.md' "$CONSUMER/AGENTS.md"
-if grep -q 'provider-adapter/SKILL.md' "$CONSUMER/AGENTS.md"; then
-    echo "common profile unexpectedly installed adapter routing" >&2
-    exit 1
-fi
-if grep -q 'references/openapi.md' "$CONSUMER/AGENTS.md"; then
-    echo "common profile unexpectedly installed OpenAPI routing" >&2
-    exit 1
-fi
+grep -q 'references/code-generation.md' "$CONSUMER/AGENTS.md"
+grep -q 'references/code-conventions.md' "$CONSUMER/AGENTS.md"
+grep -q 'references/openapi.md' "$CONSUMER/AGENTS.md"
+grep -q 'provider-adapter/SKILL.md' "$CONSUMER/AGENTS.md"
+grep -q 'do not cross the provider boundary' "$CONSUMER/AGENTS.md"
+cp "$CONSUMER/AGENTS.md" "$CONSUMER/AGENTS.common"
+cmp "$CONSUMER/AGENTS.md" "$CONSUMER/CLAUDE.md"
 
 jq -e '
   (has("Stop") | not) and
@@ -89,17 +88,14 @@ jq -e '
   ([.hooks.SubagentStop[].hooks[]?.command | select(contains("format-kotlin.sh"))] | length == 1)
 ' "$CONSUMER/.codex/hooks.json" >/dev/null
 
+# Legacy profile selectors remain accepted but must not change task routing.
 printf 'adapter\n' >"$CONSUMER/.agent-rules-profile"
 (
     cd "$CONSUMER"
     ./.agent-rules/install.sh
     ./.agent-rules/check.sh
 )
-grep -q 'provider-adapter/SKILL.md' "$CONSUMER/AGENTS.md"
-if grep -q 'references/openapi.md' "$CONSUMER/AGENTS.md"; then
-    echo "adapter profile unexpectedly installed OpenAPI routing" >&2
-    exit 1
-fi
+cmp "$CONSUMER/AGENTS.common" "$CONSUMER/AGENTS.md"
 
 printf 'openapi\n' >"$CONSUMER/.agent-rules-profile"
 (
@@ -107,11 +103,14 @@ printf 'openapi\n' >"$CONSUMER/.agent-rules-profile"
     ./.agent-rules/install.sh
     ./.agent-rules/check.sh
 )
-grep -q 'references/openapi.md' "$CONSUMER/AGENTS.md"
-if grep -q 'provider-adapter/SKILL.md' "$CONSUMER/AGENTS.md"; then
-    echo "OpenAPI profile unexpectedly installed adapter routing" >&2
-    exit 1
-fi
+cmp "$CONSUMER/AGENTS.common" "$CONSUMER/AGENTS.md"
+
+(
+    cd "$CONSUMER"
+    ./.agent-rules/install.sh --profile common
+    ./.agent-rules/check.sh --profile adapter
+)
+cmp "$CONSUMER/AGENTS.common" "$CONSUMER/AGENTS.md"
 
 sed -i.bak 's/# Shared agent guidance/# Shared agent guidance DRIFT/' "$CONSUMER/AGENTS.md"
 rm -f "$CONSUMER/AGENTS.md.bak"
