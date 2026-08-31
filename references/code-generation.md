@@ -17,7 +17,8 @@ published generated contract.
 - Preserve wire-compatible field types.
 - Use explicit field presence when an omitted scalar must remain distinguishable
   from its default value.
-- Use the repository's established package/versioning strategy.
+- Keep published Protobuf packages and source directories versioned according to the
+  repository's established versioning strategy.
 - When consumers may receive new enum values, `oneof` variants, or messages, add or
   update compatibility tests and tolerant handling as appropriate.
 

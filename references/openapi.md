@@ -7,6 +7,8 @@ contract compatibility.
   server/client code.
 - Preserve stable `operationId` values unless the change intentionally coordinates a
   breaking API migration.
+- A breaking public API change requires explicit versioning plus a documented
+  deprecation and consumer-migration plan.
 - Reuse shared parameters, error schemas, security schemes, and components rather than
   copying equivalent definitions.
 - Make request/response constraints explicit when they are part of the public

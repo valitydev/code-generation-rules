@@ -12,15 +12,22 @@ style.
 - Applied migrations are immutable; introduce a new migration for a schema change.
 - Trace a schema change through migration, generated model (if any), write path, read
   path, conversion, and tests.
+- Keep storage invariants consistent across database defaults and `NOT NULL`
+  constraints, generated/local models, converters, and repository writes.
 - Keep database writes that form one business transition in one transaction. Place
   the transaction at the narrowest layer that can complete the transition atomically,
   and do not keep remote calls or unrelated work inside it.
 - Protect real business keys against concurrent races with an appropriate database
   constraint and domain handling.
 - Do not build SQL by concatenating untrusted values.
+- Handle empty collections before `IN` predicates or collection writes when the
+  repository/DSL would otherwise produce invalid or misleading behavior.
 - Batch related reads when a collection path would otherwise produce N+1 queries.
 - Paginated reads need deterministic ordering with a unique tie-breaker; use the
   repository's established pagination strategy.
+- Updates should change only fields the operation is allowed to modify.
+- Use upsert only for a defined business key; make conflict columns and the minimal
+  update set explicit.
 - Verify state-changing batch operations when a partial update would violate the
   business transition.
 - When a state transition can be replayed, preserve idempotent replay and reject a

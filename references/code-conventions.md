@@ -32,9 +32,12 @@ These are useful defaults when the local codebase does not provide stronger evid
 - External systems stay behind local clients/interfaces so generated stubs and retry
   mechanics do not leak into unrelated business code.
 - Converters map data; they should not write to the database or perform remote calls.
+- Unsupported conversion directions should fail explicitly rather than return `null`.
 - Typed DTOs are preferred for stable external contracts over unstructured maps.
 - Preserve the distinction between an omitted value and an explicit empty/default
   value whenever the contract gives those states different meaning.
+- When a contract/schema changes, review affected converters and tests so each new
+  field is mapped or intentionally ignored.
 - Collection conversion should not introduce N+1 remote or database calls.
 - Request/correlation identifiers should be propagated across transport boundaries
   when the existing system supports them.
@@ -44,6 +47,8 @@ These are useful defaults when the local codebase does not provide stronger evid
 
 Use the project's existing configuration mechanism. In Spring projects, typed
 `@ConfigurationProperties` is generally preferable to scattered string lookups.
+Required configuration should be validated with the project's established mechanism
+and fail fast at startup rather than at first use.
 
 Keep transport, mapping, and business-scenario responsibilities separable. Retry,
 backoff, authentication, base URL resolution, and serialization should have one

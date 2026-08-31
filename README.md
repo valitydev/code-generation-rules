@@ -94,6 +94,23 @@ local implementation evidence, starts from the closest working local flow, and l
 only references needed for the concrete operation. Routes may compose: for example, an
 adapter change that also modifies OpenAPI or persistence can load both relevant paths.
 
+No special repository metadata is required in task prompts. A consuming repository
+does not need to be described as an adapter, OpenAPI, or database repository; routing
+is selected from the work being changed.
+
+Examples:
+
+```text
+Fix an NPE in FooService
+→ core guidance only, unless investigation reveals a relevant specialized boundary
+
+Add a migration and repository query
+→ core + references/database.md
+
+Implement a provider callback and update its OpenAPI contract
+→ core + provider-adapter skill + references/openapi.md
+```
+
 ## Hooks
 
 `hooks/format-kotlin.sh` runs at `Stop`/`SubagentStop` when the current agent surface

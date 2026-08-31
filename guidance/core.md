@@ -17,6 +17,9 @@ Keep these organization-level invariants:
   organization-wide rule without stronger repository or contract evidence.
 - Run the project's existing focused tests, linters, generators, and compatibility
   checks that cover the changed area.
+- Before reporting completion of a code or configuration change, review the final diff
+  for unintended behavior changes, unrelated edits, missed mappings, and generated
+  churn relevant to the changed area.
 - Do not load or apply detailed guidance that is unrelated to the current task.
 
 Detailed references are defaults and checklists, not permission to override stronger
