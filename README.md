@@ -1,104 +1,145 @@
 # code-generation-rules
 
-Shared engineering rules and agent tooling for the organization, mounted into
-projects as a git submodule.
+Shared agent guidance and deterministic coding hooks for Vality services.
 
-The repository carries three things:
+The repository is mounted into a consuming project as `.agent-rules`. The persistent
+agent context stays intentionally small: durable cross-project invariants plus routes
+to more specific guidance. Detailed conventions are read only for tasks that need
+them.
 
-- `rules/` — common rules and opt-in profiles, as plain markdown. Single source
-  of truth.
-- `hooks/` — scripts wired into agent lifecycle events (Claude Code and Codex).
-- `install.sh` / `check.sh` — wire the above into a consuming project, idempotently.
+Repository-local code, tests, build configuration, `AGENTS.md`, and `CLAUDE.md` remain
+the primary evidence for local architecture and implementation patterns. External
+contract skills may define a different authoritative source for the wire contract
+itself.
 
-## What belongs here
+## Guidance model
 
-Top-level files in `rules/` hold rules that apply to the whole organization.
-Rules shared by one family of services live in `rules/profiles/` and are selected
-by the consuming project. Anything tied to one service — its build quirks and
-local conventions — stays in that service's own `AGENTS.md` / `CLAUDE.md`,
-outside the synced block.
+Use the narrowest mechanism that reliably owns a rule:
 
-## Adding to a project
+- `guidance/core.md` — durable organization-wide invariants and routing only;
+- `references/` — task-specific checklists and defaults loaded when relevant;
+- `skills/provider-adapter/` — the reusable workflow for external provider adapters;
+- repository-local code/instructions — service-specific architecture and conventions;
+- hooks, generators, linters, tests, and CI — deterministic checks that should not be
+  implemented mainly through prose.
+
+A rule should not become always-on merely because it is good engineering advice. Keep
+it persistent when omitting it repeatedly causes a material wrong choice across the
+whole scope. Otherwise put it in a narrower reference/skill, leave it to repository
+evidence, or enforce it with tooling.
+
+## Repository layout
+
+- `guidance/core.md` — compact guidance installed into persistent agent context.
+- `references/` — focused guidance for database, generated contracts, OpenAPI, and
+  cross-layer code decisions.
+- `skills/provider-adapter/` — contract-first provider workflow and narrow references.
+- `hooks/` — deterministic lifecycle checks; currently Kotlin formatting/linting.
+- `agents/` — Claude Code and Codex hook fragments.
+- `install.sh` — installs or refreshes the managed agent block and hooks.
+- `check.sh` — verifies that a consuming repository matches the pinned submodule.
+- `ci/github-actions/agent-rules-drift.yml` — optional consuming-repository drift check.
+
+## Install
+
+From the consuming repository:
 
 ```bash
 git submodule add <repo-url> .agent-rules
 ./.agent-rules/install.sh
 ```
 
-`install.sh` is idempotent and touches only what it owns:
+The installer is idempotent. It owns only:
 
-- registers the Kotlin format hook in `.claude/settings.json` and `.codex/hooks.json`
-- writes `@`-imports of the selected rule files into `CLAUDE.md`
-- syncs the rule text into `AGENTS.md` between `<!-- BEGIN agent-rules -->` and
-  `<!-- END agent-rules -->`
+- content between `<!-- BEGIN agent-rules -->` and `<!-- END agent-rules -->` in
+  `AGENTS.md` and `CLAUDE.md`;
+- hook entries containing this repository's `format-kotlin.sh` marker in
+  `.codex/hooks.json` and `.claude/settings.json`.
 
-Everything outside those markers is yours and is never rewritten.
+Content outside those owned areas is preserved. On Codex, a one-time migration may
+move legacy root-level `Stop`/`SubagentStop` groups into the current top-level `hooks`
+object; unrelated handlers inside those groups are preserved.
 
-Commit the resulting changes together with the submodule pointer.
+Requirements: `git` and `jq`. The Kotlin hook uses Maven only when the target project
+contains `ktlint-maven-plugin`.
 
-## Rule profiles
+## Legacy profile compatibility
 
-Without configuration, `install.sh` applies only the common rules. A consuming
-project can commit `.agent-rules-profile` with one of these values:
+Guidance routing is task-driven rather than profile-driven. New consuming repositories
+do not need `.agent-rules-profile`.
 
-- `common` — common rules only;
-- `openapi` — common rules and contract-first OpenAPI conventions;
-- `adapter` — common rules and external-adapter conventions.
+For compatibility with repositories already using the previous interface,
+`.agent-rules-profile` and `--profile common|openapi|adapter` are still accepted by
+`install.sh` / `check.sh`, but those values no longer remove routes from the managed
+agent block. This lets existing CI and project configuration migrate without changing
+which task-specific guidance is available.
 
-For example:
+## Agent routing
+
+The managed block does not copy `references/` or `skills/` into every task. It routes
+the coding agent:
+
+- schema/migration/repository/transaction work → `references/database.md`;
+- generated-source or Protobuf work → `references/code-generation.md`;
+- cross-layer architecture/client/converter decisions not settled by local code →
+  `references/code-conventions.md`;
+- OpenAPI contract/generation work → `references/openapi.md`;
+- changes that cross an external provider boundary or provider flow — request/response,
+  authentication, callbacks, polling, provider error mapping, provider integration
+  tests, or adapting another provider → `skills/provider-adapter/SKILL.md`.
+
+Ordinary internal bugs/refactors do not load the provider skill merely because they are
+in an adapter repository. The provider skill distinguishes the provider contract from
+local implementation evidence, starts from the closest working local flow, and loads
+only references needed for the concrete operation. Routes may compose: for example, an
+adapter change that also modifies OpenAPI or persistence can load both relevant paths.
+
+No special repository metadata is required in task prompts. A consuming repository
+does not need to be described as an adapter, OpenAPI, or database repository; routing
+is selected from the work being changed.
+
+Examples:
 
 ```text
-openapi
+Fix an NPE in FooService
+→ core guidance only, unless investigation reveals a relevant specialized boundary
+
+Add a migration and repository query
+→ core + references/database.md
+
+Implement a provider callback and update its OpenAPI contract
+→ core + provider-adapter skill + references/openapi.md
 ```
 
-The profile can be overridden for a single command. The same option is accepted
-by `check.sh`:
+## Hooks
 
-```bash
-./.agent-rules/install.sh --profile openapi
-./.agent-rules/check.sh --profile openapi
-```
+`hooks/format-kotlin.sh` runs at `Stop`/`SubagentStop` when the current agent surface
+supports project hooks. When Kotlin changed and the project uses
+`ktlint-maven-plugin`, it runs formatting and checking and can return remaining
+violations to the agent.
 
-The command-line value takes precedence over `.agent-rules-profile`. Unknown or
-empty profile values are rejected.
+The Codex fragment follows the current `.codex/hooks.json` schema with a top-level
+`hooks` object. `install.sh` also removes legacy root-level `Stop`/`SubagentStop`
+entries previously installed by this repository before writing the current shape.
 
-## Updating
+## Update and drift check
 
 ```bash
 git submodule update --remote .agent-rules
 ./.agent-rules/install.sh
+git diff
+./.agent-rules/check.sh
 ```
 
-Review the diff, then commit. The bump is explicit per project — rules never
-change under a project without a commit in it.
+Review and commit the submodule pointer together with generated managed-block/hook
+changes. `check.sh` writes nothing and exits non-zero on drift.
 
-## Keeping projects honest
+The optional GitHub Actions example is
+`ci/github-actions/agent-rules-drift.yml`; consuming workflows must checkout
+submodules.
 
-`check.sh` runs `install.sh --check` with the configured profile: it writes
-nothing and exits non-zero when a project has drifted from the submodule it pins.
-Wire it into CI with
-`ci/github-actions/agent-rules-drift.yml` — note the `submodules: true` on
-checkout, without it the check runs against an empty directory.
+## Project-specific environment
 
-## The Kotlin format hook
-
-`hooks/format-kotlin.sh` runs on the agent's `Stop` event — once per turn, after
-the code is generated, in both Claude Code and Codex.
-
-When the turn touched Kotlin, it runs `ktlint:format` and `ktlint:check` in one
-maven invocation. Both goals are needed: `format` fixes what it can but exits
-successfully while staying silent about the rest, so only `check` surfaces the
-violations that need a human-shaped fix. Those are handed back to the agent,
-which then has to correct them before the turn can end.
-
-It is deliberately quiet and cheap: with no changed `.kt`/`.kts` files, or in a
-project with no ktlint, it exits in well under a tenth of a second without
-starting a JVM.
-
-Note that `ktlint:format` covers the whole module, not just the changed files.
-In a project where CI already enforces `ktlint:check`, everything committed is
-formatted anyway, so this is a no-op on untouched code.
-
-If a project needs specific environment to run its build (a particular
-`JAVA_HOME`, a locale), put it in `.agent-rules.env` in the project root — the
-hook sources it when present. That file belongs to the project, not here.
+If the Kotlin hook needs project-local environment such as `JAVA_HOME`, the consuming
+repository may provide `.agent-rules.env` at its root. The hook sources that file when
+present. Do not commit secrets in that file.
